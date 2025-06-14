@@ -21,10 +21,7 @@ const Inventory = require('./models/Inventory');
 // ------------------------
 // 🌐 MongoDB Connection
 // ------------------------
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose.connect(process.env.MONGO_URI)
 .then(() => {
   console.log('✅ MongoDB connected');
   app.listen(process.env.PORT, () => {
@@ -86,5 +83,65 @@ app.get('/inventory/:id', async (req, res) => {
     res.json(item);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch inventory item.' });
+  }
+});
+// ------------------------
+// 📥 POST Endpoints
+// ------------------------
+
+// Upload a new video
+app.post('/videos', async (req, res) => {
+  try {
+    const { title, url, description, category, thumbnail, duration } = req.body;
+    
+    // Validate required fields
+    if (!title || !url || !description || !category) {
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        required: ['title', 'url', 'description', 'category']
+      });
+    }
+
+    // Validate category
+    const validCategories = ['Crops', 'Livestock', 'Equipment', 'General'];
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({ 
+        error: 'Invalid category',
+        validCategories
+      });
+    }
+
+    const newVideo = new Video({
+      title,
+      url,
+      description,
+      category,
+      thumbnail,
+      duration,
+      uploadDate: new Date()
+    });
+
+    await newVideo.save();
+    console.log(`📽️ New video uploaded with ID: ${newVideo._id}`);
+    res.status(201).json({ message: 'Video uploaded successfully!', video: newVideo });
+  } catch (err) {
+    console.error('Error uploading video:', err);
+    res.status(500).json({ 
+      error: 'Failed to upload video.',
+      details: err.message 
+    });
+  }
+});
+
+// Add new inventory item
+app.post('/inventory', async (req, res) => {
+  try {
+    const { name, category, price, stock } = req.body;
+    const newItem = new Inventory({ name, category, price, stock });
+    await newItem.save();
+    console.log(`📦 New inventory item added with ID: ${newItem._id}`);
+    res.status(201).json({ message: 'Inventory item added!', item: newItem });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add inventory item.' });
   }
 });
