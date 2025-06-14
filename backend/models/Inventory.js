@@ -1,37 +1,11 @@
+// models/Inventory.js
 const mongoose = require('mongoose');
 
 const inventorySchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  category: {
-    type: String,
-    required: true,
-    enum: ['Seeds', 'Fertilizers', 'Tools', 'Equipment', 'Other']
-  },
-  quantity: {
-    type: Number,
-    required: true,
-    min: 0
-  },
-  unit: {
-    type: String,
-    required: true
-  },
-  lastUpdated: {
-    type: Date,
-    default: Date.now
-  },
-  description: {
-    type: String
-  },
-  status: {
-    type: String,
-    enum: ['In Stock', 'Low Stock', 'Out of Stock'],
-    default: 'In Stock'
-  }
-});
+  itemName: { type: String, required: true },
+  price: { type: Number, required: true },
+  stock: { type: Number, required: true },
+  linkedVideoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Video' },
+}, { timestamps: true });
 
 module.exports = mongoose.model('Inventory', inventorySchema);
