@@ -145,3 +145,124 @@ app.post('/inventory', async (req, res) => {
     res.status(500).json({ error: 'Failed to add inventory item.' });
   }
 });
+
+// ------------------------
+// ✏️ PUT Endpoints
+// ------------------------
+
+// Update a video
+app.put('/videos/:id', async (req, res) => {
+  try {
+    const { title, url, description, category, thumbnail, duration } = req.body;
+
+    // Check if video exists first
+    const existingVideo = await Video.findById(req.params.id);
+    if (!existingVideo) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // If category is being updated, validate it
+    if (category) {
+      const validCategories = ['Crops', 'Livestock', 'Equipment', 'General'];
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({ 
+          error: 'Invalid category',
+          validCategories
+        });
+      }
+    }
+
+    // Create update object with only provided fields
+    const updateData = {
+      ...(title && { title }),
+      ...(url && { url }),
+      ...(description && { description }),
+      ...(category && { category }),
+      ...(thumbnail && { thumbnail }),
+      ...(duration && { duration }),
+      lastUpdated: new Date()
+    };
+
+    const updatedVideo = await Video.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    console.log(`📽️ Video updated with ID: ${updatedVideo._id}`);
+    res.json({ 
+      message: 'Video updated successfully', 
+      video: updatedVideo 
+    });
+  } catch (err) {
+    console.error('Error updating video:', err);
+    res.status(500).json({ 
+      error: 'Failed to update video.',
+      details: err.message 
+    });
+  }
+});
+
+// Update an inventory item
+app.put('/inventory/:id', async (req, res) => {
+  try {
+    const { name, category, price, stock, description, status } = req.body;
+
+    // Check if item exists first
+    const existingItem = await Inventory.findById(req.params.id);
+    if (!existingItem) {
+      return res.status(404).json({ error: 'Inventory item not found' });
+    }
+
+    // If category is being updated, validate it
+    if (category) {
+      const validCategories = ['Seeds', 'Fertilizers', 'Tools', 'Equipment', 'Other'];
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({ 
+          error: 'Invalid category',
+          validCategories
+        });
+      }
+    }
+
+    // If status is being updated, validate it
+    if (status) {
+      const validStatuses = ['In Stock', 'Low Stock', 'Out of Stock'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ 
+          error: 'Invalid status',
+          validStatuses
+        });
+      }
+    }
+
+    // Create update object with only provided fields
+    const updateData = {
+      ...(name && { name }),
+      ...(category && { category }),
+      ...(price && { price }),
+      ...(stock && { stock }),
+      ...(description && { description }),
+      ...(status && { status }),
+      lastUpdated: new Date()
+    };
+
+    const updatedItem = await Inventory.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    console.log(`📦 Inventory item updated with ID: ${updatedItem._id}`);
+    res.json({ 
+      message: 'Inventory item updated successfully', 
+      item: updatedItem 
+    });
+  } catch (err) {
+    console.error('Error updating inventory item:', err);
+    res.status(500).json({ 
+      error: 'Failed to update inventory item.',
+      details: err.message 
+    });
+  }
+});
