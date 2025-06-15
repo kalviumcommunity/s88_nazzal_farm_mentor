@@ -19,41 +19,98 @@ app.use(express.json());
 // ------------------------
 const Video = require('./models/Video');
 const Inventory = require('./models/Inventory');
+const User = require('./models/User');
+const Plant = require('./models/Plant');
 
 // ------------------------
 // 🌐 MongoDB Connection
 // ------------------------
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log('✅ MongoDB connected');
-  app.listen(process.env.PORT, () => {
-    console.log(`🚀 Server running on port ${process.env.PORT}`);
-  });
-})
-.catch((err) => console.error('❌ MongoDB connection error:', err));
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    });
+
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    
+    // Start server only after DB connection
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('❌ MongoDB connection error:', error.message);
+    // Exit process with failure
+    process.exit(1);
+  }
+};
+
+// Connect to MongoDB
+connectDB();
+
+// Handle MongoDB errors after initial connection
+mongoose.connection.on('error', err => {
+  console.error('MongoDB error after initial connection:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('🔌 MongoDB disconnected');
+});
 
 // ------------------------
-// 🧪 Test Route
+// 🧪 Test Route with DB Check
 // ------------------------
-app.get('/test', (req, res) => res.send('API is working 🚀'));
+app.get('/test', async (req, res) => {
+  try {
+    // Check DB connection
+    if (mongoose.connection.readyState !== 1) {
+      throw new Error('Database not connected');
+    }
+    res.json({ 
+      status: 'success',
+      message: 'API is working 🚀',
+      dbStatus: 'connected'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error',
+      message: error.message,
+      dbStatus: 'disconnected'
+    });
+  }
+});
 
 // ------------------------
-// 📥 POST Endpoints
+// 📥 POST Endpoints with Validation
 // ------------------------
 
 // Upload a new video
 app.post('/videos', async (req, res) => {
   try {
     const { title, url, description, uploadedBy } = req.body;
+    
+    // Basic validation
+    if (!title || !url) {
+      return res.status(400).json({ error: 'Title and URL are required fields.' });
+    }
+
     const newVideo = new Video({ title, url, description, uploadedBy });
     await newVideo.save();
     console.log(`📽️ New video uploaded with ID: ${newVideo._id}`);
-    res.status(201).json({ message: 'Video uploaded successfully!', video: newVideo });
+    res.status(201).json({ 
+      status: 'success',
+      message: 'Video uploaded successfully!', 
+      video: newVideo 
+    });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to upload video.' });
+    console.error('Error uploading video:', err);
+    res.status(500).json({ 
+      status: 'error',
+      error: 'Failed to upload video.',
+      details: err.message 
+    });
   }
 });
 
@@ -61,36 +118,99 @@ app.post('/videos', async (req, res) => {
 app.post('/inventory', async (req, res) => {
   try {
     const { name, category, price, stock } = req.body;
+    
+    // Basic validation
+    if (!name || !category || price === undefined) {
+      return res.status(400).json({ error: 'Name, category, and price are required fields.' });
+    }
+
     const newItem = new Inventory({ name, category, price, stock });
     await newItem.save();
     console.log(`📦 New inventory item added with ID: ${newItem._id}`);
-    res.status(201).json({ message: 'Inventory item added!', item: newItem });
+    res.status(201).json({ 
+      status: 'success',
+      message: 'Inventory item added!', 
+      item: newItem 
+    });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to add inventory item.' });
+    console.error('Error adding inventory item:', err);
+    res.status(500).json({ 
+      status: 'error',
+      error: 'Failed to add inventory item.',
+      details: err.message 
+    });
   }
 });
 
 // ------------------------
-// 🔍 GET Endpoints
+// 🔍 GET Endpoints with Pagination
 // ------------------------
 
-// Get all videos
+// Get all videos with pagination
 app.get('/videos', async (req, res) => {
   try {
-    const videos = await Video.find();
-    res.json(videos);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const videos = await Video.find()
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    const total = await Video.countDocuments();
+
+    res.json({
+      status: 'success',
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalVideos: total,
+      videos
+    });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch videos.' });
+    console.error('Error fetching videos:', err);
+    res.status(500).json({ 
+      status: 'error',
+      error: 'Failed to fetch videos.',
+      details: err.message 
+    });
   }
 });
 
-// Get all inventory items
+// Get all inventory items with pagination and filtering
 app.get('/inventory', async (req, res) => {
   try {
-    const items = await Inventory.find();
-    res.json(items);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const category = req.query.category;
+
+    let query = {};
+    if (category) {
+      query.category = category;
+    }
+
+    const items = await Inventory.find(query)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    const total = await Inventory.countDocuments(query);
+
+    res.json({
+      status: 'success',
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalItems: total,
+      items
+    });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch inventory items.' });
+    console.error('Error fetching inventory:', err);
+    res.status(500).json({ 
+      status: 'error',
+      error: 'Failed to fetch inventory items.',
+      details: err.message 
+    });
   }
 });
 
